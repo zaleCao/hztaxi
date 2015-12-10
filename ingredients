@@ -1,0 +1,12 @@
+ingredients
+
+class Taxi(db.Document):
+    taxi_id = db.DateTimeField(default=datetime.datetime.now, required=True)
+    lng = db.StringField(max_length=255, required=True)
+    lat = db.StringField(max_length=255, required=True)
+    velocity = db.StringField(required=True)
+    angle = db.ListField(db.EmbeddedDocumentField('Comment'))
+    carry = db.In
+    temp2 =
+    date = 
+    time =

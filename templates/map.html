@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    
+    <title>taxi heat map</title>
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.4/themes/smoothness/jquery-ui.css">
+     <link rel="stylesheet" href="static/css/style.css">
+<!--      <link rel="stylesheet" href="static/css/bootstrap.min.css"> -->
+<!--     <link rel="stylesheet" href="static/css/normalize.css" />
+    <link rel="stylesheet" href="static/css/ion.rangeSlider.css" />
+    <link rel="stylesheet" href="static/css/ion.rangeSlider.skinFlat.css" /> -->
+    <script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=5m3SfR2ZfI0HqzPy11Ar9Esb"></script>
+    <script type="text/javascript" src="http://api.map.baidu.com/library/Heatmap/2.0/src/Heatmap_min.js"></script>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-latest.js"></script>
+    <script src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+    <script src="static/js/bootstrap.min.js"></script>
+
+</head>
+<body>
+	<div id="container"></div> 
+    <div id='side-control'>
+        <div id="r-result">
+            <input type="button"  onclick="openHeatmap();" value="显示热力图"/><input type="button"  onclick="closeHeatmap();" value="关闭热力图"/>
+        </div>
+        <div class='slider-item'>
+            日期
+            <div id="slider1" class='slider'></div>
+        </div>
+        <div class='slider-item'>
+            小时
+            <div id="slider2" class='slider'></div>
+        </div>
+        <div class='slider-item'>
+            <div class='slider-value' id='minute'></div>
+            <div class='slider-label'>分钟</div>
+            <button id='play-min'>></button>
+            <div id="slider-min" class='slider'></div>
+        </div>
+    </div>
+</body>
+</html>
+
+<script type="text/javascript">
+var map = new BMap.Map("container");          // 创建地图实例
+
+    var point = new BMap.Point(120.169515,30.272821);
+    map.centerAndZoom(point, 13);             // 初始化地图，设置中心点坐标和地图级别
+    map.enableScrollWheelZoom(); // 允许滚轮缩放
+    var  mapStyle ={ 
+        // features: ["road", "building","water","land"],//隐藏地图上的poi
+        style : "dark"  //设置地图风格为高端黑
+    }
+    map.setMapStyle(mapStyle);
+    map.addControl(new BMap.NavigationControl());
+    map.addControl(new BMap.ScaleControl());    
+    map.addControl(new BMap.OverviewMapControl());    
+    map.addControl(new BMap.MapTypeControl());
+
+    var marker  = [];
+    //add marker click event
+    map.addEventListener("click",function(e){
+        map.removeOverlay(marker);
+        map.addOverlay(heatmapOverlay);
+        var pt = new BMap.Point(e.point.lng,e.point.lat);
+        // var myIcon = new BMap.Icon("static/img/taxi.png", new BMap.Size(24,22));
+        // var marker = new BMap.Marker(pt,{icon:myIcon});  // 创建标注
+        // map.addOverlay(marker); 
+
+                     // 将标注添加到地图中
+        //square side length = r*2
+        var r = 0.003;
+        var pStart = new BMap.Point(e.point.lng-r,e.point.lat-r);
+        var pEnd = new BMap.Point(e.point.lng+r,e.point.lat+r);
+        marker = new BMap.Polygon([
+            new BMap.Point(pStart.lng,pStart.lat),
+            new BMap.Point(pEnd.lng,pStart.lat),
+            new BMap.Point(pEnd.lng,pEnd.lat),
+            new BMap.Point(pStart.lng,pEnd.lat)
+        ], {strokeColor:"white", strokeWeight:1.5, strokeOpacity:1,fillOpacity:0.2});  //创建矩形
+        map.addOverlay(marker);
+    });
+
+    
+
+    var getID = function(Time, Lat, Lng, Carry){
+        points = [];
+        $.getJSON("/carry", { time: Time, lng:Lng, lat:Lat, carry:Carry },
+          function(data){
+            $.each(data, function(i, item){
+              routeQuery(item.lng, item,lat, item.trip, item.carry);
+            });
+        });
+
+    var routeQuery = function(value){
+        points = [];
+        $.getJSON("/pickup", { trip: value, },
+          function(data){
+            $.each(data, function(i, item){
+              lng = item.lng + 0.011085
+              lat = item.lat + 0.003634
+              points.push({"lng":lng, "lat":lat, "count":500});
+              var p1 = new BMap.Point(116.301934,39.977552);
+              var p2 = new BMap.Point(116.508328,39.919141);
+              var p3 = new BMap.Point(116.405934,39.678552);
+              var p4 = new BMap.Point(116.019328,39.937141);  
+
+              var driving = new BMap.DrivingRoute(map, {renderOptions:{map: map, autoViewport: true}});
+              var driving2 = new BMap.DrivingRoute(map, {renderOptions:{map: map, autoViewport: true}});
+              driving.search(p1, p2);
+              driving2.search(p3, p4);
+            });
+            // console.log(points);
+            heatmapOverlay.setDataSet({data:points,max:1000});
+          });
+    }       
+
+    //get lat and lng
+    // map.addEventListener("click",function(e){
+    //     alert(e.point.lng + "," + e.point.lat);
+    // });
+
+    // var local = new BMap.LocalSearch(map, {
+    //     renderOptions: {map: map, panel: "r-result"}
+    // });
+    // local.search("学校");  
+    var points =[];
+
+    // $(document).ready(function () {
+    //     $.getJSON("/data?time=777",function(data){
+    //     // console.log(data);
+    //         $.each(data, function(i, item){
+    //           lng = item.lng + 0.011085
+    //           lat = item.lat + 0.003634  
+    //           points.push({"lng":lng, "lat":lat, "count":500});
+    //         });
+    //         // console.log(points);
+    //         heatmapOverlay = new BMapLib.HeatmapOverlay({"radius":4});
+    //         map.addOverlay(heatmapOverlay);
+    //         heatmapOverlay.setDataSet({data:points,max:1000});
+    //     });
+    // });
+    
+    //initialise heatmap display
+    heatmapOverlay = new BMapLib.HeatmapOverlay({"radius":3});
+    map.addOverlay(heatmapOverlay);
+   
+    if(!isSupportCanvas()){
+        alert('热力图目前只支持有canvas支持的浏览器,您所使用的浏览器不能使用热力图功能~')
+    }
+    //详细的参数,可以查看heatmap.js的文档 https://github.com/pa7/heatmap.js/blob/master/README.md
+    //参数说明如下:
+    /* visible 热力图是否显示,默认为true
+     * opacity 热力的透明度,1-100
+     * radius 势力图的每个点的半径大小   
+     * gradient  {JSON} 热力图的渐变区间 . gradient如下所示
+     *  {
+            .2:'rgb(0, 255, 255)',
+            .5:'rgb(0, 110, 255)',
+            .8:'rgb(100, 0, 255)'
+        }
+        其中 key 表示插值的位置, 0~1. 
+            value 为颜色值. 
+     */
+
+    //是否显示热力图
+    function openHeatmap(){
+        heatmapOverlay.show();
+    }
+    function closeHeatmap(){
+        heatmapOverlay.hide();
+    }
+    openHeatmap();
+    function setGradient(){
+        /*格式如下所示:
+        {
+            0:'rgb(102, 255, 0)',
+            .5:'rgb(255, 170, 0)',
+            1:'rgb(255, 0, 0)'
+        }*/
+        var gradient = {};
+        var colors = document.querySelectorAll("input[type='color']");
+        colors = [].slice.call(colors,0);
+        colors.forEach(function(ele){
+            gradient[ele.getAttribute("data-key")] = ele.value; 
+        });
+        heatmapOverlay.setOptions({"gradient":gradient});
+    }
+    //判断浏览区是否支持canvas
+    function isSupportCanvas(){
+        var elem = document.createElement('canvas');
+        return !!(elem.getContext && elem.getContext('2d'));
+    }
+
+    //slider controls
+    $( "#slider1" ).slider();
+    $( "#slider2" ).slider();
+    
+    //minute slider
+    $(function() {
+          var slider = $( "#slider-min" ).slider({
+          value:600,
+          min: 0,
+          max: 4000,
+          step: 600,
+
+          //update time value in div
+          slide: function( event, ui ) { 
+            //change to minute display
+            var value = ui.value/60;
+            $("#minute").text( value );
+          },
+          //for time query upon release of mouse click on slider
+          change: function( event, ui ) { 
+            //change to minute display
+            timeQuery(ui.value);
+            var value = ui.value/60;
+            $("#minute").text( value );
+          }
+        });
+        var x = $( "#slider-min" ).slider( "value" )/60;
+        $("#minute").text(x);
+        timeQuery($( "#slider-min" ).slider( "value" ))
+
+        function advance() {
+            var init = slider.slider("value");
+            //define step independently of step of slide
+            var step = 600;
+            var sum = init + step;
+            slider.slider( "value", sum );
+            console.log('yay');
+        }
+
+        $("#play-min").click(function(){
+            setInterval(advance,2000);
+            console.log('wow')
+        }); 
+
+      });
+
+    var timeQuery = function(value){
+        points = [];
+        $.getJSON("/data", { time: value, },
+          function(data){
+            $.each(data, function(i, item){
+              lng = item.lng + 0.011085
+              lat = item.lat + 0.003634  
+              points.push({"lng":lng, "lat":lat, "count":500});
+            });
+            // console.log(points);
+            heatmapOverlay.setDataSet({data:points,max:1000});
+          });
+    }
+</script>
